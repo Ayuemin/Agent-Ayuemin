@@ -30,7 +30,7 @@ class ChatController(private val activity:Activity,private val refresh:()->Unit)
  fun newChat()=selectChat(messages.newChat())
  fun send(body:String){
   if(busy||body.isBlank())return
-  if(prefs.getString("key","").isNullOrEmpty()){openSection(2);return}
+  if(!configured())return
   val target=chat
   messages.add(target,"user",body.trim())
   busy=true;refresh()
@@ -68,37 +68,17 @@ class ChatController(private val activity:Activity,private val refresh:()->Unit)
    }}
   }
  }
- fun openSection(which:Int){when(which){0->settings(true);1->stats();2->settings(false)}}
- private fun settings(contextSettings:Boolean){
-  val keys=if(contextSettings)arrayOf("context","threshold","cycles","rag") else arrayOf("base","key","model","input_price","output_price","cached_price","embedding_base","embedding_key","embedding_model")
-  val labels=if(contextSettings)arrayOf("Рабочий контекст / tokens","Порог сжатия / %","Циклы вопрос-ответ","Фрагменты RAG") else arrayOf("API HTTPS URL","API Key","Chat model","Input USD / 1M","Output USD / 1M","Cached USD / 1M","Embeddings URL","Embeddings API key","Embeddings model")
-  val defaults=if(contextSettings)arrayOf("8000","80","5","5") else arrayOf("https://api.deepseek.com/v1","","deepseek-chat","0.20","0.60","0.02","","","")
-  val layout=LinearLayout(activity).apply{orientation=LinearLayout.VERTICAL;setPadding(24,12,24,12)}
-  val controls=keys.indices.map{index->
-   layout.addView(TextView(activity).apply{text=labels[index];setPadding(0,12,0,2)})
-   EditText(activity).also{field->
-    field.setSingleLine(true)
-    val value=if(contextSettings)prefs.getInt(keys[index],defaults[index].toInt()).toString() else prefs.getString(keys[index],defaults[index]).orEmpty()
-    field.setText(value)
-    field.inputType=if(contextSettings)InputType.TYPE_CLASS_NUMBER else if(keys[index].contains("key"))InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD else InputType.TYPE_CLASS_TEXT
-    layout.addView(field)
-   }
+ fun getSetting(key:String,default:String):String=if(key in setOf("context","threshold","cycles","rag"))prefs.getInt(key,default.toIntOrNull()?:0).toString() else prefs.getString(key,default).orEmpty()
+ fun saveSettings(values:Map<String,String>){
+  val editor=prefs.edit()
+  values.forEach{(key,value)->
+   if(key in setOf("context","threshold","cycles","rag"))editor.putInt(key,value.toIntOrNull()?:0)
+   else editor.putString(key,value)
   }
-  val scroll=ScrollView(activity).apply{addView(layout)}
-  AlertDialog.Builder(activity).setTitle(if(contextSettings)"Контекст" else "API и тарифы").setView(scroll)
-   .setNegativeButton(tr("Отмена","Cancel"),null).setPositiveButton(tr("Сохранить","Save")){_,_->
-    prefs.edit().apply{
-     keys.indices.forEach{if(contextSettings)putInt(keys[it],controls[it].text.toString().toIntOrNull()?:defaults[it].toInt()) else putString(keys[it],controls[it].text.toString())}
-    }.apply()
-    refresh()
-   }.show()
+  editor.apply();refresh()
  }
- private fun stats(){
-  val s=usage.stats(chat)
-  AlertDialog.Builder(activity).setTitle(tr("Статистика чата","Chat statistics"))
-   .setMessage("Requests: ${s.requests}\nInput: ${s.input}\nOutput: ${s.output}\nCached: ${s.cached}\nTotal: ${s.input+s.output}\nEstimated cost: $"+String.format(Locale.US,"%.6f",s.cost))
-   .setPositiveButton("OK",null).show()
- }
+ fun statistics():ChatUsage=usage.stats(chat)
+ fun configured()=!prefs.getString("key","").isNullOrBlank()
  private val pick=201
  fun pickFile(){activity.startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).apply{type="*/*";addCategory(Intent.CATEGORY_OPENABLE)},pick)}
  fun onFileResult(request:Int,result:Int,data:Intent?,append:(String)->Unit){
