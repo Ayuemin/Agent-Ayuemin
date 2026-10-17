@@ -29,6 +29,10 @@ import androidx.compose.ui.unit.dp
 class ComposeChatActivity : androidx.activity.ComponentActivity() {
     private lateinit var controller: ChatController
     private val showSheet = mutableStateOf(false)
+    private val showDiagnostics = mutableStateOf(false)
+    private val showMicInfo = mutableStateOf(false)
+    private var exportJson = false
+    private val exportCode = 202
     private val showDrawer = mutableStateOf(false)
     private val showContext = mutableStateOf(false)
     private val section = mutableIntStateOf(-1)
@@ -37,6 +41,7 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
     private val contextState = mutableFloatStateOf(0f)
     private val contextLabelState = mutableStateOf("")
     private val workingState = mutableStateOf(false)
+    private val errorState = mutableStateOf<String?>(null)
     private val inputState = mutableStateOf("")
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +62,7 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
         contextState.floatValue = controller.contextFraction()
         contextLabelState.value = controller.contextLabel()
         workingState.value = controller.busy
+        errorState.value = controller.lastError
     }
     private fun t(ru: String, en: String) = controller.tr(ru, en)
 
@@ -70,6 +76,15 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
         val pending = workingState.value
         var draft by remember { mutableStateOf(inputState.value) }
         LaunchedEffect(inputState.value) { draft = inputState.value }
+        if (showDiagnostics.value) DiagnosticsScreen(controller.diagnostics, {showDiagnostics.value=false}) { json ->
+            exportJson=json
+            startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type=if(json)"application/json" else "text/plain"
+                putExtra(Intent.EXTRA_TITLE,if(json)"ayuemin-diagnostics.json" else "ayuemin-diagnostics.txt")
+            },exportCode)
+        }
+        if(showMicInfo.value) AlertDialog(onDismissRequest={showMicInfo.value=false},title={Text("Диктовка")},text={Text("Офлайн-движок ещё не установлен. Модель Vosk будет добавлена отдельным этапом.")},confirmButton={TextButton(onClick={showMicInfo.value=false}){Text("OK")}})
         if (section.intValue==0 || section.intValue==2) ChatSettingsSheet(section.intValue,controller){section.intValue=-1}
         if (section.intValue==1) ChatUsageSheet(controller.statistics()){section.intValue=-1}
         if (showContext.value) {
@@ -84,29 +99,21 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
                 }
             }
         }
-        if (showSheet.value) {
-            ModalBottomSheet(onDismissRequest = { showSheet.value = false }) {
-                Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                    Text(t("Информация о чате", "Chat information"), style = MaterialTheme.typography.titleLarge)
-                    listOf(t("Настройки контекста", "Context settings"),t("Статистика чата", "Chat statistics"),t("Подключение API и тарифы", "API connection and pricing")).forEachIndexed { index, item ->
-                        TextButton(onClick = { showSheet.value=false; section.intValue=index }, modifier=Modifier.fillMaxWidth()) { Text(item) }
+        var menuExpanded by remember { mutableStateOf(false) }
+        ModalNavigationDrawer(
+            drawerState = rememberDrawerState(if(showDrawer.value) DrawerValue.Open else DrawerValue.Closed),
+            gesturesEnabled = showDrawer.value,
+            drawerContent = {
+                ModalDrawerSheet {
+                    Text(t("Диалоги","Chats"),modifier=Modifier.padding(20.dp),style=MaterialTheme.typography.titleLarge)
+                    NavigationDrawerItem(label={Text(t("Новый чат","New chat"))},selected=false,onClick={controller.newChat();showDrawer.value=false})
+                    controller.chats().forEach { item ->
+                        NavigationDrawerItem(label={Text(item.title)},selected=false,onClick={controller.selectChat(item.id);showDrawer.value=false})
                     }
-                    Spacer(Modifier.height(24.dp))
+                    TextButton(onClick={showDrawer.value=false}){Text(t("Закрыть","Close"))}
                 }
             }
-        }
-        if (showDrawer.value) {
-            ModalBottomSheet(onDismissRequest = { showDrawer.value = false }) {
-                Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                    Text(t("Диалоги", "Chats"), style=MaterialTheme.typography.titleLarge)
-                    TextButton(onClick = { showDrawer.value=false; controller.newChat() }) { Text(t("+ Новый чат","+ New chat")) }
-                    controller.chats().forEach { chat ->
-                        TextButton(onClick={ showDrawer.value=false; controller.selectChat(chat.id) },modifier=Modifier.fillMaxWidth()) { Text(chat.title) }
-                    }
-                    Spacer(Modifier.height(24.dp))
-                }
-            }
-        }
+        ) {
         Scaffold(
             modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -126,38 +133,34 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
                                 modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
                             Text("${(contextFraction * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
                         }
-                        IconButton(onClick = { showSheet.value = true }) {
-                            Icon(Icons.Default.Settings, contentDescription = t("Информация о чате", "Chat information"))
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Default.Settings, contentDescription = t("Информация о чате", "Chat information"))
+                            }
+                            DropdownMenu(expanded=menuExpanded,onDismissRequest={menuExpanded=false}) {
+                                listOf(t("Настройки контекста","Context settings"),t("Статистика","Statistics"),t("Подключение API","API settings"),t("Диагностика","Diagnostics")).forEachIndexed { index,label ->
+                                    DropdownMenuItem(text={Text(label)},onClick={
+                                        menuExpanded=false
+                                        if(index==3) showDiagnostics.value=true else section.intValue=index
+                                    })
+                                }
+                            }
                         }
                     }
                     HorizontalDivider()
                 }
             },
             bottomBar = {
-                Surface(tonalElevation = 2.dp) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().imePadding().padding(8.dp),
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        IconButton(onClick = { controller.pickFile() }) {
-                            Icon(Icons.Default.Add, contentDescription = t("Прикрепить файл", "Attach file"))
-                        }
-                        OutlinedTextField(
-                            value = draft, onValueChange = {
-                                draft = it
-
-                            },
-                            modifier = Modifier.weight(1f), maxLines = 5,
-                            placeholder = { Text(t("Сообщение...", "Message...")) },
-                            shape = RoundedCornerShape(20.dp)
-                        )
-                        IconButton(onClick = {
-                            if(controller.configured()) { controller.send(draft); draft = "" }
-                            else section.intValue=2
-                        }, enabled = !pending && draft.isNotBlank()) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = t("Отправить", "Send"))
-                        }
+                Column(Modifier.imePadding()) {
+                    errorState.value?.let { err ->
+                        Text("Ошибка: $err", color=MaterialTheme.colorScheme.error,modifier=Modifier.padding(horizontal=16.dp))
+                        TextButton(onClick={controller.retry()}) {Text(t("Повторить","Retry"))}
                     }
+                    ChatComposer(draft=draft,onDraft={draft=it},busy=pending,
+                        onSend={
+                            if(controller.configured()) {controller.send(draft);draft=""}
+                            else section.intValue=2
+                        }, onStop={controller.stop()},onAttach={controller.pickFile()},onMic={showMicInfo.value=true})
                 }
             }
         ) { padding ->
@@ -192,11 +195,15 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
                 }
             }
         }
+        }
     }
 
     @Deprecated("Legacy activity result retained until modern file picker.")
     override fun onActivityResult(requestCode:Int, resultCode:Int, data:Intent?) {
         super.onActivityResult(requestCode,resultCode,data)
-        controller.onFileResult(requestCode,resultCode,data) { inputState.value=it }
+        if(requestCode==exportCode && resultCode==RESULT_OK && data?.data!=null) {
+            val text=if(exportJson) controller.diagnostics.exportJsonLines() else controller.diagnostics.exportTxt()
+            runCatching {contentResolver.openOutputStream(data.data!!)?.bufferedWriter()?.use{it.write(text)} }
+        } else controller.onFileResult(requestCode,resultCode,data) { inputState.value=it }
     }
 }
