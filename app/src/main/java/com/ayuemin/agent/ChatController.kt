@@ -57,7 +57,7 @@ class ChatController(private val activity:Activity,private val refresh:()->Unit)
       }
       if(old.isNotBlank()){
        val prompt=JSONArray().put(JSONObject().put("role","system").put("content","Summarize goals, constraints, decisions and TODOs without inventing facts.")).put(JSONObject().put("role","user").put("content",old))
-       val result=api.call(prompt,(context.maximum()/10).coerceAtLeast(256))
+       val result=api.call(prompt)
        usage.record(target,result)
        summary=result.reply
        messages.updateSummary(target,summary,all[end-1].id)
