@@ -38,7 +38,7 @@ class ComposeChatActivity : MainActivity() {
         super.onCreate(savedInstanceState)
         updateViewState()
         setContent {
-            MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF167A7F))) {
+            AyueminTheme {
                 ChatScreen()
             }
         }
