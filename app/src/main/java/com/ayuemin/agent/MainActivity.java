@@ -34,7 +34,7 @@ public class MainActivity extends Activity {
     DB(Context c){super(c,"ayuemin.db",null,1);}
     @Override public void onCreate(SQLiteDatabase d){
       d.execSQL("CREATE TABLE messages(id INTEGER PRIMARY KEY AUTOINCREMENT,chat TEXT,role TEXT,body TEXT,time INTEGER)");
-      d.execSQL("CREATE VIRTUAL TABLE search USING fts5(body,content='messages',content_rowid='id')");
+      d.execSQL("CREATE VIRTUAL TABLE search USING fts4(body)");
       d.execSQL("CREATE TRIGGER messages_ai AFTER INSERT ON messages BEGIN INSERT INTO search(rowid,body) VALUES(new.id,new.body); END");
       d.execSQL("CREATE TABLE usages(id INTEGER PRIMARY KEY,chat TEXT,input INTEGER,output INTEGER,cached INTEGER,expense REAL)");
       d.execSQL("CREATE TABLE summaries(chat TEXT PRIMARY KEY,text TEXT,until_id INTEGER DEFAULT 0)");
@@ -112,7 +112,7 @@ public class MainActivity extends Activity {
     if(terms.isEmpty())return "";
     String match=String.join(" OR ",terms);int upper=all.get(boundary-1).id;
     StringBuilder out=new StringBuilder();
-    try(Cursor c=db.rawQuery("SELECT m.id,m.role,m.body FROM search JOIN messages m ON m.id=search.rowid WHERE search MATCH ? AND m.chat=? AND m.id<=? ORDER BY bm25(search) LIMIT ?",new String[]{match,chat,String.valueOf(upper),String.valueOf(k)})){
+    try(Cursor c=db.rawQuery("SELECT m.id,m.role,m.body FROM search JOIN messages m ON m.id=search.rowid WHERE search MATCH ? AND m.chat=? AND m.id<=? ORDER BY m.id DESC LIMIT ?",new String[]{match,chat,String.valueOf(upper),String.valueOf(k)})){
       while(c.moveToNext())out.append("#").append(c.getInt(0)).append(" ").append(c.getString(1)).append(": ").append(c.getString(2),0,Math.min(1300,c.getString(2).length())).append("\n");
     }catch(Exception ignored){}
     return out.toString();
