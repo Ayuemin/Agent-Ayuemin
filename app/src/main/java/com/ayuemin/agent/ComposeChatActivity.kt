@@ -26,7 +26,11 @@ import androidx.compose.ui.unit.dp
  * Compose presentation layer. Existing message database, RAG and API pipeline are
  * delegated to the legacy controller during a staged, non-destructive migration.
  */
-class ComposeChatActivity : MainActivity() {
+class ComposeChatActivity : androidx.activity.ComponentActivity() {
+    private lateinit var controller: ChatController
+    private val showSheet = mutableStateOf(false)
+    private val showDrawer = mutableStateOf(false)
+    private val showContext = mutableStateOf(false)
     private val messagesState = mutableStateOf<List<Msg>>(emptyList())
     private val titleState = mutableStateOf("")
     private val contextState = mutableFloatStateOf(0f)
@@ -36,6 +40,7 @@ class ComposeChatActivity : MainActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        controller = ChatController(this) { updateViewState() }
         updateViewState()
         setContent {
             AyueminTheme {
@@ -44,19 +49,15 @@ class ComposeChatActivity : MainActivity() {
         }
     }
 
-    override fun render() {
-        super.render()
-        updateViewState()
-    }
-
     private fun updateViewState() {
-        messagesState.value = read().toList()
-        titleState.value = title.text.toString()
-        contextState.floatValue = (ring.value / 100f).coerceIn(0f, 1f)
-        contextLabelState.value = progress.text.toString()
-        workingState.value = busy
-        inputState.value = input.text.toString()
+        val all = controller.messages()
+        messagesState.value = all
+        titleState.value = all.firstOrNull()?.body?.take(26) ?: controller.tr("Новый чат", "New chat")
+        contextState.floatValue = controller.contextFraction()
+        contextLabelState.value = controller.contextLabel()
+        workingState.value = controller.busy
     }
+    private fun t(ru: String, en: String) = controller.tr(ru, en)
 
     @Composable
     private fun ChatScreen() {
@@ -67,6 +68,41 @@ class ComposeChatActivity : MainActivity() {
         val pending = workingState.value
         var draft by remember { mutableStateOf(inputState.value) }
         LaunchedEffect(inputState.value) { draft = inputState.value }
+        if (showContext.value) {
+            ModalBottomSheet(onDismissRequest = { showContext.value = false }) {
+                Column(Modifier.fillMaxWidth().padding(24.dp)) {
+                    Text(t("Контекст чата", "Chat context"), style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(16.dp))
+                    Text(contextLabel)
+                    Spacer(Modifier.height(12.dp))
+                    LinearProgressIndicator(progress = { contextFraction }, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(32.dp))
+                }
+            }
+        }
+        if (showSheet.value) {
+            ModalBottomSheet(onDismissRequest = { showSheet.value = false }) {
+                Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                    Text(t("Информация о чате", "Chat information"), style = MaterialTheme.typography.titleLarge)
+                    listOf(t("Настройки контекста", "Context settings"),t("Статистика чата", "Chat statistics"),t("Подключение API и тарифы", "API connection and pricing")).forEachIndexed { index, item ->
+                        TextButton(onClick = { showSheet.value=false; controller.openSection(index) }, modifier=Modifier.fillMaxWidth()) { Text(item) }
+                    }
+                    Spacer(Modifier.height(24.dp))
+                }
+            }
+        }
+        if (showDrawer.value) {
+            ModalBottomSheet(onDismissRequest = { showDrawer.value = false }) {
+                Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                    Text(t("Диалоги", "Chats"), style=MaterialTheme.typography.titleLarge)
+                    TextButton(onClick = { showDrawer.value=false; controller.newChat() }) { Text(t("+ Новый чат","+ New chat")) }
+                    controller.chats().forEach { chat ->
+                        TextButton(onClick={ showDrawer.value=false; controller.selectChat(chat.id) },modifier=Modifier.fillMaxWidth()) { Text(chat.title) }
+                    }
+                    Spacer(Modifier.height(24.dp))
+                }
+            }
+        }
         Scaffold(
             modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -76,22 +112,20 @@ class ComposeChatActivity : MainActivity() {
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { chatList() }) {
+                        IconButton(onClick = { showDrawer.value = true }) {
                             Icon(Icons.Default.Menu, contentDescription = t("Диалоги", "Chats"))
                         }
                         Text(currentTitle, maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp)) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(44.dp).clickable { showContext.value = true }) {
                             CircularProgressIndicator(progress = { contextFraction },
                                 modifier = Modifier.size(32.dp), strokeWidth = 3.dp)
                             Text("${(contextFraction * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
                         }
-                        IconButton(onClick = { chatInfo() }) {
+                        IconButton(onClick = { showSheet.value = true }) {
                             Icon(Icons.Default.Settings, contentDescription = t("Информация о чате", "Chat information"))
                         }
                     }
-                    Text(contextLabel, modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     HorizontalDivider()
                 }
             },
@@ -101,22 +135,21 @@ class ComposeChatActivity : MainActivity() {
                         modifier = Modifier.fillMaxWidth().imePadding().padding(8.dp),
                         verticalAlignment = Alignment.Bottom
                     ) {
-                        IconButton(onClick = { pickFile() }) {
+                        IconButton(onClick = { controller.pickFile() }) {
                             Icon(Icons.Default.Add, contentDescription = t("Прикрепить файл", "Attach file"))
                         }
                         OutlinedTextField(
                             value = draft, onValueChange = {
                                 draft = it
-                                input.setText(it)
+
                             },
                             modifier = Modifier.weight(1f), maxLines = 5,
                             placeholder = { Text(t("Сообщение...", "Message...")) },
                             shape = RoundedCornerShape(20.dp)
                         )
                         IconButton(onClick = {
-                            input.setText(draft)
-                            send()
-                            if (input.text.isEmpty()) draft = ""
+                            controller.send(draft)
+                            draft = ""
                         }, enabled = !pending && draft.isNotBlank()) {
                             Icon(Icons.AutoMirrored.Filled.Send, contentDescription = t("Отправить", "Send"))
                         }
@@ -157,9 +190,9 @@ class ComposeChatActivity : MainActivity() {
         }
     }
 
-    @Deprecated("Legacy document picker callback retained until attachment extraction.")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        updateViewState()
+    @Deprecated("Legacy activity result retained until modern file picker.")
+    override fun onActivityResult(requestCode:Int, resultCode:Int, data:Intent?) {
+        super.onActivityResult(requestCode,resultCode,data)
+        controller.onFileResult(requestCode,resultCode,data) { inputState.value=it }
     }
 }
