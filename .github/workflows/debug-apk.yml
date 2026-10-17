@@ -37,8 +37,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG=v0.2.0-debug
+          TAG=v0.2.1-debug
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            gh release create "$TAG" --title "Agent Ayuemin 0.2.0 Debug" --prerelease --notes "Kotlin-only + Material 3 preview. Chat, local history, API and experimental hybrid RAG. Tested for build only; device behavior still requires verification."
+            gh release create "$TAG" --title "Agent Ayuemin 0.2.1 Debug" --prerelease --notes "API parser, diagnostics, menu/drawer, composer and cancellation preview. CI build only; device functionality is unverified. Debug signing may change between runs."
           fi
           gh release upload "$TAG" app/build/outputs/apk/debug/app-debug.apk --clobber
