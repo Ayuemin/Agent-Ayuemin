@@ -13,7 +13,7 @@ class ApiClient(private val prefs: SharedPreferences, private val logger: Diagno
     @Volatile private var activeConnection: HttpURLConnection? = null
     fun cancel() { activeConnection?.disconnect() }
 
-    fun call(messages: JSONArray, limit: Int = 0): ApiResult {
+    fun call(messages: JSONArray): ApiResult {
         val base = (prefs.getString("base", "https://api.deepseek.com/v1") ?: "").trim().trimEnd('/')
         require(base.startsWith("https://")) { "HTTPS base URL required" }
         val url = if (base.endsWith("/chat/completions")) base else "$base/chat/completions"
