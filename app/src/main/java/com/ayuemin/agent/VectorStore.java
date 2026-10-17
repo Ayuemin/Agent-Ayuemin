@@ -10,7 +10,7 @@ final class VectorStore {
  VectorStore(SQLiteDatabase db){this.db=db;}
  boolean exists(int id,String model){try(Cursor c=db.rawQuery("SELECT 1 FROM vectors WHERE message_id=? AND model=? LIMIT 1",new String[]{""+id,model})){return c.moveToFirst();}}
  void upsert(int id,String model,double[] vector){
-   JSONArray a=new JSONArray();for(double x:vector)a.put(x);
+   JSONArray a=new JSONArray();try{for(double x:vector)a.put(x);}catch(org.json.JSONException error){throw new IllegalArgumentException("Invalid embedding values",error);}
    db.execSQL("INSERT OR REPLACE INTO vectors(message_id,model,dimensions,data) VALUES(?,?,?,?)",new Object[]{id,model,vector.length,a.toString()});
  }
  List<Match> search(String chat,int beforeId,String model,double[] query,int count){
