@@ -100,8 +100,10 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
             }
         }
         var menuExpanded by remember { mutableStateOf(false) }
+        val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+        LaunchedEffect(showDrawer.value) { if(showDrawer.value) drawerState.open() else drawerState.close() }
         ModalNavigationDrawer(
-            drawerState = rememberDrawerState(if(showDrawer.value) DrawerValue.Open else DrawerValue.Closed),
+            drawerState = drawerState,
             gesturesEnabled = showDrawer.value,
             drawerContent = {
                 ModalDrawerSheet {
