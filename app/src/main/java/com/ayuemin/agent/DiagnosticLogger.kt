@@ -31,7 +31,8 @@ class DiagnosticLogger(context: Context, private val prefs: SharedPreferences) {
             } catch (_: Exception) { /* diagnostics must never break chat */ }
         }
     }
-    fun exportJsonLines(): String = synchronized(lock) { if (file.exists()) file.readText() else "" }\n    fun exportJson(): String = org.json.JSONArray().apply { exportJsonLines().lineSequence().filter { it.isNotBlank() }.forEach { line -> runCatching { put(JSONObject(line)) } } }.toString(2)
+    fun exportJsonLines(): String = synchronized(lock) { if (file.exists()) file.readText() else "" }
+    fun exportJson(): String = org.json.JSONArray().apply { exportJsonLines().lineSequence().filter { it.isNotBlank() }.forEach { line -> runCatching { put(JSONObject(line)) } } }.toString(2)
     fun exportTxt(): String = exportJsonLines().lineSequence().filter { it.isNotBlank() }.map {
         try {
             val o = JSONObject(it)
