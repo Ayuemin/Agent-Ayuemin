@@ -19,6 +19,7 @@ fun ConfigureSystemBars(darkTheme: Boolean) {
     SideEffect {
         val window = (view.context as? Activity)?.window ?: return@SideEffect
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.decorView.setBackgroundColor(background)
         window.statusBarColor = background
         window.navigationBarColor = background
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
