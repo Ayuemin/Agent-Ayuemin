@@ -14,13 +14,19 @@ class ChatController(private val activity:Activity,private val refresh:()->Unit)
  private val db=ChatDatabase(activity).writableDatabase
  private val messages=ChatRepository(db)
  private val usage=UsageRepository(db)
- private val api=ApiClient(prefs)
+ val diagnostics=DiagnosticLogger(activity,prefs)
+ private val api=ApiClient(prefs,diagnostics)
  private val embedding=EmbeddingClient(prefs)
  private val rag=HybridRag(RetrievalEngine(db),embedding,VectorStore(db),prefs)
  private val context=ContextEngine(prefs,rag)
  private val worker=Executors.newSingleThreadExecutor()
  private var chat=prefs.getString("chat","1").orEmpty()
- var busy=false;private set
+ @Volatile var busy=false;private set
+ @Volatile private var cancelled=false
+ private var currentFuture:java.util.concurrent.Future<*>?=null
+ var lastError:String?=null;private set
+ fun stop(){if(!busy)return;cancelled=true;api.cancel();currentFuture?.cancel(true);busy=false;diagnostics.event("request","cancelled");activity.runOnUiThread{refresh()}}
+ fun retry(){val target=chat;val last=messages.messages(target).lastOrNull();if(last?.role=="user"&&!busy)sendInternal(last.body,false)}
  fun tr(ru:String,en:String)=if(Locale.getDefault().language=="ru")ru else en
  fun messages()=messages.messages(chat)
  fun chats()=messages.chats()
@@ -28,13 +34,15 @@ class ChatController(private val activity:Activity,private val refresh:()->Unit)
  fun contextLabel():String{val used=context.estimate(messages(),messages.summary(chat));val max=context.maximum();return tr("Контекст: ","Context: ")+"$used / $max (${(100f*used/max).toInt()}%)"}
  fun selectChat(id:String){chat=id;prefs.edit().putString("chat",id).apply();refresh()}
  fun newChat()=selectChat(messages.newChat())
- fun send(body:String){
+ fun send(body:String)=sendInternal(body,true)
+ private fun sendInternal(body:String,insert:Boolean){
   if(busy||body.isBlank())return
   if(!configured())return
   val target=chat
-  messages.add(target,"user",body.trim())
+  if(insert)messages.add(target,"user",body.trim())
+  cancelled=false;lastError=null
   busy=true;refresh()
-  worker.execute{
+  currentFuture=worker.submit{
    try{
     val all=messages.messages(target)
     var summary=messages.summary(target)
@@ -58,13 +66,14 @@ class ChatController(private val activity:Activity,private val refresh:()->Unit)
     }
     val start=(all.size-prefs.getInt("cycles",5).coerceAtLeast(1)*2).coerceAtLeast(0)
     if(start>0)rag.index(all,all[start-1].id)
-    val result=api.call(context.assemble(target,all,summary),1024)
+    if(cancelled)return@submit
+    val result=api.call(context.assemble(target,all,summary))
+    if(cancelled)return@submit
     usage.record(target,result)
-    messages.add(target,"assistant",result.reply)
-    activity.runOnUiThread{busy=false;refresh()}
-   }catch(e:Exception){activity.runOnUiThread{
-    busy=false;refresh()
-    AlertDialog.Builder(activity).setTitle(tr("Ошибка API","API error")).setMessage(e.message).setPositiveButton("OK",null).show()
+    if(!cancelled)messages.add(target,"assistant",result.reply)
+    activity.runOnUiThread{if(!cancelled){busy=false;refresh()}}
+   }catch(e:Exception){if(!cancelled)activity.runOnUiThread{
+    busy=false;lastError=e.message?.take(250)?:"API error";refresh()
    }}
   }
  }
