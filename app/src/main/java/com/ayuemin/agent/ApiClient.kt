@@ -21,7 +21,27 @@ class ApiClient(private val prefs:SharedPreferences){
    val raw=(if(status<400)connection.inputStream else connection.errorStream)?.bufferedReader()?.use{it.readText()}?:throw IOException("Empty API response")
    if(status>=400)throw IOException("HTTP $status: "+raw.take(350))
    val response=JSONObject(raw)
-   val message=response.getJSONArray("choices").getJSONObject(0).getJSONObject("message").optString("content","")
+   val choice=response.optJSONArray("choices")?.optJSONObject(0)
+       ?: throw IOException("API returned no completion choices")
+   val messageJson=choice.optJSONObject("message")
+       ?: throw IOException("API returned no assistant message")
+   val reason=choice.optString("finish_reason","unknown")
+   val rawContent=messageJson.opt("content")
+   val message=when(rawContent){
+    is String -> rawContent
+    is JSONArray -> buildString{
+      for(i in 0 until rawContent.length()){
+        val part=rawContent.optJSONObject(i)
+        val text=part?.optString("text","")?.takeUnless{it=="null"}.orEmpty()
+        if(text.isNotBlank())append(text)
+      }
+    }
+    else -> ""
+   }
+   if(message.isBlank() || message=="null"){
+     val model=response.optString("model","unknown")
+     throw IOException("Provider returned no text (finish_reason=$reason, model=$model). Check output token limit and provider response format.")
+   }
    val usage=response.optJSONObject("usage")
    val input=usage?.optInt("prompt_tokens",0)?:0
    val output=usage?.optInt("completion_tokens",0)?:0
