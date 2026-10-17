@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 
-public class MainActivity extends Activity {
+public class MainActivity extends androidx.activity.ComponentActivity {
   final ExecutorService worker=Executors.newSingleThreadExecutor();
   SQLiteDatabase db; SharedPreferences prefs;
   LinearLayout root, transcript, top; ScrollView scroll; EditText input;
