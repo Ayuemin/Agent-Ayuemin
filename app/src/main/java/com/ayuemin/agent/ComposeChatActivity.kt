@@ -204,7 +204,7 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
     override fun onActivityResult(requestCode:Int, resultCode:Int, data:Intent?) {
         super.onActivityResult(requestCode,resultCode,data)
         if(requestCode==exportCode && resultCode==RESULT_OK && data?.data!=null) {
-            val text=if(exportJson) controller.diagnostics.exportJsonLines() else controller.diagnostics.exportTxt()
+            val text=if(exportJson) controller.diagnostics.exportJson() else controller.diagnostics.exportTxt()
             runCatching {contentResolver.openOutputStream(data.data!!)?.bufferedWriter()?.use{it.write(text)} }
         } else controller.onFileResult(requestCode,resultCode,data) { inputState.value=it }
     }
