@@ -2,7 +2,7 @@
 
 **Development plan:** [ROADMAP.md](ROADMAP.md) — mandatory architecture rules, tasks, status, regression checklist. Always update when working on the code.
 
-This repository contains an experimental, minimal Android chat client (version 0.1.0-debug).
+This repository contains an experimental, minimal Android chat client (version 0.2.0-debug).
 
 ## Build and APK
 
@@ -10,21 +10,21 @@ GitHub Actions: [Debug APK](https://github.com/Ayuemin/Agent-Ayuemin/actions/wor
 
 This is an experimental debug APK. GitHub-hosted debug builds use ephemeral debug signing keys. Uninstalling an earlier debug build may be required to install a new build, which erases application-local data. Do **not** rely on this build for important conversation history.
 
-## Implemented in the initial code
+## Implemented in the preview
 
 - Basic Android chat with multiple local conversations.
 - Configurable OpenAI Chat Completions-compatible endpoint, API key and model ID.
 - Local SQLite message history.
-- Local **lexical retrieval** from old messages (SQLite FTS4). This is a first retrieval baseline, **not semantic RAG**.
+- Experimental **hybrid retrieval**: local SQLite FTS4 and optional API-provided embeddings stored in SQLite. Ranking/chunking still requires further testing.
 - Last-N-turn context assembler and experimental summary-on-threshold.
-- Ring indicator for estimated working-context usage.
+- Tap the ring indicator for estimated working-context usage; Material 3 sheets for chats, context, settings and statistics.
 - Per-chat aggregate token usage and estimated spending using manually configured rates.
 - Text file import (up to 200 KB). Non-text files/images are **not yet supported**.
 - UI text in Russian/English, selected using Android system language.
 
 ## Not implemented yet
 
-- API embeddings and semantic vector retrieval, hybrid ranking and citation provenance.
+- Production-grade API embedding queue, high-quality semantic chunking/ranking and citation provenance.
 - Reliable state compaction when the working window is persistently small; compaction quality regression testing.
 - Native Anthropic/Gemini adapters; provider support currently **only OpenAI-compatible** APIs.
 - Full image and PDF attachment handling, streaming responses.
@@ -38,7 +38,7 @@ API keys are kept in app-private Android SharedPreferences **without additional 
 
 ## Architecture direction
 
-Full, original message history remains in SQLite. The model request contains a bounded recent-message window plus locally retrieved older excerpts and optional task summary. A later revision must replace the lexical-only retrieval with API embeddings + hybrid RAG and isolate the components into independent modules.
+Full, original message history remains in SQLite. The model request contains a bounded recent-message window plus locally retrieved older excerpts and optional task summary. Basic hybrid retrieval is present; production-grade indexing and embeddings billing are future tasks. All app source code is Kotlin; storage, HTTP and RAG live in independent classes.
 
 ## Build locally
 
