@@ -161,8 +161,8 @@ public class MainActivity extends Activity {
       try(OutputStream out=conn.getOutputStream()){out.write(payload.toString().getBytes(StandardCharsets.UTF_8));}
       int status=conn.getResponseCode();InputStream stream=status<400?conn.getInputStream():conn.getErrorStream();
       if(stream==null)throw new IOException("HTTP "+status);
-      ByteArrayOutputStream b=new ByteArrayOutputStream();stream.transferTo(b);
-      String raw=b.toString(StandardCharsets.UTF_8);
+      ByteArrayOutputStream b=new ByteArrayOutputStream();byte[] part=new byte[8192];int read;while((read=stream.read(part))!=-1)b.write(part,0,read);
+      String raw=new String(b.toByteArray(),StandardCharsets.UTF_8);
       if(status>=400)throw new IOException("HTTP "+status+": "+raw.substring(0,Math.min(500,raw.length())));
       JSONObject response=new JSONObject(raw);
       ApiResult result=new ApiResult();
@@ -244,7 +244,7 @@ public class MainActivity extends Activity {
       String mime=getContentResolver().getType(data.getData());if(mime==null||!(mime.startsWith("text/")||mime.contains("json")))throw new IOException(t("Пока поддерживаются только текстовые файлы","Only text files are supported in this preview"));
       InputStream s=getContentResolver().openInputStream(data.getData());if(s==null)return;
       ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] buf=new byte[8192];int n;while((n=s.read(buf))!=-1){if(out.size()+n>200000)throw new IOException("File exceeds 200 KB");out.write(buf,0,n);}s.close();
-      input.append("\n[FILE]\n"+out.toString(StandardCharsets.UTF_8)+"\n[/FILE]\n");
+      input.append("\n[FILE]\n"+new String(out.toByteArray(),StandardCharsets.UTF_8)+"\n[/FILE]\n");
     }catch(Exception e){Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();}
   }
   class Ring extends View{
