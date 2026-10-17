@@ -16,5 +16,6 @@ fun AyueminTheme(content: @Composable () -> Unit) {
         dark -> darkColorScheme()
         else -> lightColorScheme()
     }
+    ConfigureSystemBars(dark)
     MaterialTheme(colorScheme = scheme, content = content)
 }
