@@ -19,7 +19,7 @@ class DiagnosticLogger(context: Context, private val prefs: SharedPreferences) {
             "model_length", "indexed_count", "retrieved_count")
         val row = JSONObject().put("at", SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ", Locale.US).format(Date()))
             .put("stage", stage.take(48)).put("code", code.take(64))
-            .put("version", BuildConfig.VERSION_NAME)
+            .put("version", "0.2.1-debug")
         fields.filterKeys { it in allowed }.forEach { (key, value) -> row.put(key, value) }
         synchronized(lock) {
             try {
