@@ -24,13 +24,14 @@ import androidx.compose.ui.unit.dp
 
 /**
  * Compose presentation layer. Existing message database, RAG and API pipeline are
- * delegated to the legacy controller during a staged, non-destructive migration.
+ * delegated to independent Kotlin repositories and services.
  */
 class ComposeChatActivity : androidx.activity.ComponentActivity() {
     private lateinit var controller: ChatController
     private val showSheet = mutableStateOf(false)
     private val showDrawer = mutableStateOf(false)
     private val showContext = mutableStateOf(false)
+    private val section = mutableIntStateOf(-1)
     private val messagesState = mutableStateOf<List<Msg>>(emptyList())
     private val titleState = mutableStateOf("")
     private val contextState = mutableFloatStateOf(0f)
@@ -44,7 +45,7 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
         updateViewState()
         setContent {
             AyueminTheme {
-                ChatScreen()
+                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { ChatScreen() }
             }
         }
     }
@@ -69,6 +70,8 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
         val pending = workingState.value
         var draft by remember { mutableStateOf(inputState.value) }
         LaunchedEffect(inputState.value) { draft = inputState.value }
+        if (section.intValue==0 || section.intValue==2) ChatSettingsSheet(section.intValue,controller){section.intValue=-1}
+        if (section.intValue==1) ChatUsageSheet(controller.statistics()){section.intValue=-1}
         if (showContext.value) {
             ModalBottomSheet(onDismissRequest = { showContext.value = false }) {
                 Column(Modifier.fillMaxWidth().padding(24.dp)) {
@@ -86,7 +89,7 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
                 Column(Modifier.fillMaxWidth().padding(20.dp)) {
                     Text(t("Информация о чате", "Chat information"), style = MaterialTheme.typography.titleLarge)
                     listOf(t("Настройки контекста", "Context settings"),t("Статистика чата", "Chat statistics"),t("Подключение API и тарифы", "API connection and pricing")).forEachIndexed { index, item ->
-                        TextButton(onClick = { showSheet.value=false; controller.openSection(index) }, modifier=Modifier.fillMaxWidth()) { Text(item) }
+                        TextButton(onClick = { showSheet.value=false; section.intValue=index }, modifier=Modifier.fillMaxWidth()) { Text(item) }
                     }
                     Spacer(Modifier.height(24.dp))
                 }
@@ -149,8 +152,8 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
                             shape = RoundedCornerShape(20.dp)
                         )
                         IconButton(onClick = {
-                            controller.send(draft)
-                            draft = ""
+                            if(controller.configured()) { controller.send(draft); draft = "" }
+                            else section.intValue=2
                         }, enabled = !pending && draft.isNotBlank()) {
                             Icon(Icons.AutoMirrored.Filled.Send, contentDescription = t("Отправить", "Send"))
                         }
