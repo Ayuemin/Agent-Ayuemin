@@ -1,5 +1,7 @@
 # Agent Ayuemin — Android debug preview
 
+**Development plan:** [ROADMAP.md](ROADMAP.md) — mandatory architecture rules, tasks, status, regression checklist. Always update when working on the code.
+
 This repository contains an experimental, minimal Android chat client (version 0.1.0-debug).
 
 ## Build and APK
