@@ -106,14 +106,10 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
             drawerState = drawerState,
             gesturesEnabled = showDrawer.value,
             drawerContent = {
-                ModalDrawerSheet {
-                    Text(t("Диалоги","Chats"),modifier=Modifier.padding(20.dp),style=MaterialTheme.typography.titleLarge)
-                    NavigationDrawerItem(label={Text(t("Новый чат","New chat"))},selected=false,onClick={controller.newChat();showDrawer.value=false})
-                    controller.chats().forEach { item ->
-                        NavigationDrawerItem(label={Text(item.title)},selected=false,onClick={controller.selectChat(item.id);showDrawer.value=false})
-                    }
-                    TextButton(onClick={showDrawer.value=false}){Text(t("Закрыть","Close"))}
-                }
+                ChatNavigationDrawer(controller.chats(),
+                    onNew={controller.newChat();showDrawer.value=false},
+                    onSelect={id->controller.selectChat(id);showDrawer.value=false},
+                    onClose={showDrawer.value=false})
             }
         ) {
         Scaffold(
@@ -177,22 +173,7 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(currentMessages, key = { it.id }) { item ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = if (item.role == "user") Arrangement.End else Arrangement.Start
-                        ) {
-                            Surface(
-                                color = if (item.role == "user") MaterialTheme.colorScheme.primaryContainer
-                                        else MaterialTheme.colorScheme.surfaceContainer,
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.fillMaxWidth(0.90f)
-                            ) {
-                                SelectionContainer {
-                                    Text(item.body, modifier = Modifier.padding(14.dp),
-                                        style = MaterialTheme.typography.bodyMedium)
-                                }
-                            }
-                        }
+                        ChatMessageItem(item)
                     }
                 }
             }
