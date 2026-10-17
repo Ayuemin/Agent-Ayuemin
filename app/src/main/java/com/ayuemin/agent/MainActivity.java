@@ -22,12 +22,12 @@ public class MainActivity extends Activity {
   LinearLayout root, transcript, top; ScrollView scroll; EditText input;
   TextView progress, title; Ring ring;
   String chat="1"; boolean busy=false;
-  ContextEngine contextEngine; RetrievalEngine retrievalEngine; ApiClient apiClient;
+  ContextEngine contextEngine; RetrievalEngine retrievalEngine; ApiClient apiClient; HybridRag hybridRag;
   int navy=0xff182436, accent=0xff147d83;
   String t(String ru,String en){return getResources().getConfiguration().getLocales().get(0).getLanguage().equals("ru")?ru:en;}
   @Override public void onCreate(Bundle b){super.onCreate(b);
     prefs=getSharedPreferences("settings",MODE_PRIVATE);
-    ChatDatabase helper=new ChatDatabase(this); db=helper.getWritableDatabase(); contextEngine=new ContextEngine(this,prefs);retrievalEngine=new RetrievalEngine(db,this);apiClient=new ApiClient(prefs);
+    ChatDatabase helper=new ChatDatabase(this); db=helper.getWritableDatabase(); contextEngine=new ContextEngine(this,prefs);retrievalEngine=new RetrievalEngine(db,this);apiClient=new ApiClient(prefs);hybridRag=new HybridRag(retrievalEngine,new EmbeddingClient(prefs),new VectorStore(db),prefs);
     chat=prefs.getString("chat","1");
     createUI(); render();
   }
@@ -76,7 +76,7 @@ public class MainActivity extends Activity {
   int summaryUntil(){try(Cursor c=db.rawQuery("SELECT until_id FROM summaries WHERE chat=?",new String[]{chat})){return c.moveToFirst()?c.getInt(0):0;}}
   void storeSummary(String s,int id){db.execSQL("INSERT OR REPLACE INTO summaries(chat,text,until_id) VALUES(?,?,?)",new Object[]{chat,s,id});}
   JSONArray buildMessages(List<Msg> all,String summary){return contextEngine.buildMessages(all,summary);}
-  String retrieve(String q,List<Msg> all,int boundary,int k){return retrievalEngine.retrieve(q,all,boundary,k);}
+  String retrieve(String q,List<Msg> all,int boundary,int k){return hybridRag.retrieve(q,all,boundary,k);}
   void send(){
     if(busy)return;
     String msg=input.getText().toString().trim();if(msg.isEmpty())return;
@@ -100,6 +100,8 @@ public class MainActivity extends Activity {
             }
           }
         }
+        int activeStart=Math.max(0,all.size()-Math.max(1,prefs.getInt("cycles",5))*2);
+        if(activeStart>0)hybridRag.index(all,all.get(activeStart-1).id);
         JSONArray messages=buildMessages(all,summary);
         ApiResult answer=call(messages,1024);
         addUsage(conversation,answer);
@@ -152,9 +154,9 @@ public class MainActivity extends Activity {
   }
   void providerSettings(){
     form(t("API и тарифы (USD / 1M токенов)","API and prices (USD / 1M tokens)"),
-      new String[]{t("Базовый HTTPS URL (OpenAI-совместимый)","Base HTTPS URL (OpenAI-compatible)"),"API key","Model",t("Входящие","Input"),t("Исходящие","Output"),t("Кэшированные входящие","Cached input")},
-      new String[]{"base","key","model","input_price","output_price","cached_price"},
-      new String[]{"https://api.deepseek.com/v1","","deepseek-chat","0.20","0.60","0.02"},false);
+      new String[]{t("Базовый HTTPS URL (OpenAI-совместимый)","Base HTTPS URL (OpenAI-compatible)"),"API key","Model",t("Входящие","Input"),t("Исходящие","Output"),t("Кэшированные входящие","Cached input"),t("URL API эмбеддингов (пусто = основной)","Embeddings base URL (blank = main)"),t("Ключ эмбеддингов (пусто = основной)","Embeddings API key (blank = main)"),t("Модель эмбеддингов (пусто = только FTS)","Embedding model (blank = FTS only)")},
+      new String[]{"base","key","model","input_price","output_price","cached_price","embedding_base","embedding_key","embedding_model"},
+      new String[]{"https://api.deepseek.com/v1","","deepseek-chat","0.20","0.60","0.02","","",""},false);
   }
   void stats(){
     long i=0,o=0,c=0,n=0;double cost=0;
