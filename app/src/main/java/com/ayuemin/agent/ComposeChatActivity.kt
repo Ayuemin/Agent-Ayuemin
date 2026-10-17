@@ -59,6 +59,7 @@ class ComposeChatActivity : androidx.activity.ComponentActivity() {
     }
     private fun t(ru: String, en: String) = controller.tr(ru, en)
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     private fun ChatScreen() {
         val currentMessages = messagesState.value
