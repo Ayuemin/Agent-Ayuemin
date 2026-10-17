@@ -8,7 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun ChatNavigationDrawer(chats:List<ChatInfo>,onNew:()->Unit,onSelect:(String)->Unit,onClose:()->Unit){
+fun ChatNavigationDrawer(chats:List<ChatItem>,onNew:()->Unit,onSelect:(String)->Unit,onClose:()->Unit){
  var query by remember { mutableStateOf("") }
  ModalDrawerSheet {
   Text("Agent-Ayuemin",Modifier.padding(18.dp),style=MaterialTheme.typography.titleLarge)
