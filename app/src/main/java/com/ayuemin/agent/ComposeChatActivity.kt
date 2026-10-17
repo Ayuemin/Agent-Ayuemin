@@ -68,6 +68,8 @@ class ComposeChatActivity : MainActivity() {
         var draft by remember { mutableStateOf(inputState.value) }
         LaunchedEffect(inputState.value) { draft = inputState.value }
         Scaffold(
+            modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
                 Column {
                     Row(
